@@ -5,8 +5,7 @@ use crate::models::Link;
 
 #[derive(Debug)]
 pub enum ConvError {
-    ParseError(String),
-    InvalidUrl(String),
+    InvalidUrl,
 }
 
 pub fn parse_markdown_links(src: &str) -> Result<Vec<Link>, ConvError> {
@@ -30,7 +29,7 @@ pub fn parse_markdown_links(src: &str) -> Result<Vec<Link>, ConvError> {
                     current_title = current_url.clone();
                 }
                 if Url::parse(&current_url).is_err() {
-                    return Err(ConvError::InvalidUrl(current_url.clone()));
+                    return Err(ConvError::InvalidUrl);
                 }
                 links.push(Link::new(current_title.clone(), current_url.clone()));
                 current_title.clear();
