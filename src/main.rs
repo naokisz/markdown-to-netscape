@@ -1,28 +1,39 @@
-use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process;
 
 mod converter;
+mod models;
 
-fn print_usage() {
-    eprintln!("Usage: markdown-to-netscape <input.md> <output.html>");
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(
+    author,
+    version,
+    about = "Convert Markdown link lists to Netscape bookmark HTML"
+)]
+struct Args {
+    /// Input markdown file (links list)
+    input: PathBuf,
+
+    /// Output HTML file (Netscape bookmark format)
+    output: PathBuf,
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 3 {
-        print_usage();
-        process::exit(2);
-    }
-    let input = &args[1];
-    let output = &args[2];
+    env_logger::init();
 
-    if !input.ends_with(".md") {
-        eprintln!("Error: input file must be a .md file");
-        process::exit(3);
+    let args = Args::parse();
+
+    if let Some(ext) = args.input.extension() {
+        if ext != "md" {
+            eprintln!("Error: input file must have .md extension");
+            process::exit(3);
+        }
     }
 
-    let src = match fs::read_to_string(input) {
+    let src = match fs::read_to_string(&args.input) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Error reading input file: {}", e);
@@ -32,14 +43,14 @@ fn main() {
 
     match converter::convert_markdown_to_netscape(&src) {
         Ok(html) => {
-            if let Err(e) = fs::write(output, html) {
+            if let Err(e) = fs::write(&args.output, html) {
                 eprintln!("Error writing output file: {}", e);
                 process::exit(5);
             }
-            println!("Conversion completed: {}", output);
+            println!("Conversion completed: {}", args.output.display());
         }
         Err(err) => {
-            eprintln!("Conversion error: {}", err);
+            eprintln!("Conversion error: {:?}", err);
             process::exit(6);
         }
     }

@@ -1,15 +1,16 @@
 use pulldown_cmark::{Event, Options, Parser, Tag};
 use url::Url;
 
+use crate::models::Link;
+
 #[derive(Debug)]
 pub enum ConvError {
     ParseError(String),
     InvalidUrl(String),
 }
 
-pub fn convert_markdown_to_netscape(src: &str) -> Result<String, ConvError> {
-    // Very small parser: look for markdown link items like - [title](url)
-    let mut links: Vec<(String, String)> = Vec::new();
+pub fn parse_markdown_links(src: &str) -> Result<Vec<Link>, ConvError> {
+    let mut links: Vec<Link> = Vec::new();
 
     let opts = Options::empty();
     let parser = Parser::new_ext(src, opts);
@@ -26,14 +27,12 @@ pub fn convert_markdown_to_netscape(src: &str) -> Result<String, ConvError> {
             }
             Event::End(Tag::Link(_, _, _)) => {
                 if current_title.trim().is_empty() {
-                    // use URL as title if empty
                     current_title = current_url.clone();
                 }
-                // validate URL
                 if Url::parse(&current_url).is_err() {
                     return Err(ConvError::InvalidUrl(current_url.clone()));
                 }
-                links.push((current_title.clone(), current_url.clone()));
+                links.push(Link::new(current_title.clone(), current_url.clone()));
                 current_title.clear();
                 current_url.clear();
                 in_link = false;
@@ -47,7 +46,10 @@ pub fn convert_markdown_to_netscape(src: &str) -> Result<String, ConvError> {
         }
     }
 
-    // Build Netscape Bookmark HTML
+    Ok(links)
+}
+
+pub fn generate_netscape_html(links: &[Link]) -> String {
     let mut out = String::new();
     out.push_str("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n");
     out.push_str("<!-- This is an automatically generated file. -->\n");
@@ -56,17 +58,27 @@ pub fn convert_markdown_to_netscape(src: &str) -> Result<String, ConvError> {
     out.push_str("<H1>Bookmarks</H1>\n");
     out.push_str("<DL><p>\n");
 
-    for (title, url) in links {
-        out.push_str(&format!("    <DT><A HREF=\"{}\">{}</A>\n", html_escape(&url), html_escape(&title)));
+    for link in links {
+        out.push_str(&format!(
+            "    <DT><A HREF=\"{}\">{}</A>\n",
+            html_escape(&link.url),
+            html_escape(&link.title)
+        ));
     }
 
     out.push_str("</DL><p>\n");
+    out
+}
 
-    Ok(out)
+pub fn convert_markdown_to_netscape(src: &str) -> Result<String, ConvError> {
+    let links = parse_markdown_links(src)?;
+    Ok(generate_netscape_html(&links))
 }
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -75,7 +87,7 @@ mod tests {
 
     #[test]
     fn test_convert_simple() {
-        let md = "- [Rust](https://www.rust-lang.org)\n- [Search](https://example.com/search)";
+        let md = "- [Rust](https://www.rust-lang.org)\\n- [Search](https://example.com/search)";
         let res = convert_markdown_to_netscape(md).unwrap();
         assert!(res.contains("https://www.rust-lang.org"));
         assert!(res.contains("Rust"));
