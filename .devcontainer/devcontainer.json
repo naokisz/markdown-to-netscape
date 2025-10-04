@@ -1,0 +1,20 @@
+{
+    "name": "markdown-to-netscape",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "workspaceFolder": "/workspaces/markdown-to-netscape",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.shell.linux": "/bin/ash"
+            },
+            "extensions": [
+                "rust-lang.rust-analyzer"
+            ]
+        }
+    },
+    "forwardPorts": [],
+    "postCreateCommand": "cargo --version || true"
+}

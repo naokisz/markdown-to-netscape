@@ -1,0 +1,24 @@
+# Ignore Rust build artifacts
+/target/
+
+# (Keep IDE settings tracked) Visual Studio Code / JetBrains IDEs are intentionally not ignored
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Editor temporary files
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Logs
+*.log
+
+# Misc
+node_modules/
+dist/
