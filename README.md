@@ -1,40 +1,42 @@
 # Markdown to Netscape
 
-Quickstart: convert the example markdown to a Netscape bookmark HTML file.
+## 概要
 
-1. Build the binary:
+このプログラムは、Markdown形式で書かれたリンクリストを「Netscape Bookmark HTML」形式に変換するコマンドラインツールです。  
+Webブラウザのブックマークインポート機能などで利用できるHTMLファイルを簡単に生成できます。
+
+## 主な特徴
+
+- Markdownのリンクリスト（例: `[タイトル](URL)`）をNetscape Bookmark HTMLに変換
+- 無効なリンクやURLは自動的に無視し、警告として表示
+
+## 使い方
+
+### 1. ビルド
 
 ```bash
 cargo build --release
 ```
 
-2. Run the converter on the example:
+### 2. 変換の実行
+
+例として、`examples/links.md` を Netscape形式HTMLに変換し `/tmp/bookmarks.html` に出力します。
 
 ```bash
 ./target/release/markdown-to-netscape examples/links.md /tmp/bookmarks.html
 ```
 
-3. Compare `/tmp/bookmarks.html` with `examples/expected_bookmarks.html`.
+### 3. 結果の確認
 
-Building for Apple Silicon macOS (locally)
-----------------------------------------
+出力された `/tmp/bookmarks.html` を `examples/expected_bookmarks.html` と比較してください。
 
-If you have an Apple Silicon Mac, you can build a native `aarch64-apple-darwin` release binary locally:
+---
 
-```bash
-# make script executable once
-chmod +x scripts/build-macos-aarch64.sh
-./scripts/build-macos-aarch64.sh
-```
 
-The resulting binary will be at:
+## ライセンス
 
-```
-target/aarch64-apple-darwin/release/markdown-to-netscape
-```
+このプロジェクトはMITライセンスで公開されています。  
+自由に利用・改変・再配布が可能です。
 
-Alternatives when not on macOS
-------------------------------
-- Use the GitHub Actions workflow (on this repo) which builds and uploads an `aarch64-apple-darwin` artifact.
-- Cross-compilation on Linux is possible but involved (osxcross, SDKs, etc.) — see project docs or CI artifacts.
+---
 
