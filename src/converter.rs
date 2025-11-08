@@ -4,9 +4,7 @@ use url::Url;
 use crate::models::Link;
 
 #[derive(Debug)]
-pub enum ConvError {
-    InvalidUrl,
-}
+pub enum ConvError {}
 
 pub struct ConvertResult {
     pub html: String,
