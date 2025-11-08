@@ -82,89 +82,103 @@ fn fallback_parse_links_with_warnings(src: &str) -> (Vec<Link>, Vec<String>) {
     let mut res: Vec<Link> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
 
-    let chars: Vec<char> = src.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '[' {
-            // found potential start
-            let mut depth = 1usize;
-            let mut j = i + 1;
-            while j < chars.len() && depth > 0 {
-                if chars[j] == '\\' {
-                    // skip escaped char
-                    j = j.saturating_add(2);
-                    continue;
+    for line in src.lines() {
+        let trimmed = line.trim();
+        // Markdownリンク形式か判定（角括弧・丸括弧のバランスを厳密に）
+        let chars: Vec<char> = trimmed.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            if chars[i] == '[' {
+                // タイトル部分
+                let mut depth = 1;
+                let mut j = i + 1;
+                while j < chars.len() && depth > 0 {
+                    if chars[j] == '[' {
+                        depth += 1;
+                    } else if chars[j] == ']' {
+                        depth -= 1;
+                    }
+                    j += 1;
                 }
-                if chars[j] == '[' {
-                    depth += 1;
-                } else if chars[j] == ']' {
-                    depth -= 1;
+                if depth == 0 {
+                    let title_start = i + 1;
+                    let title_end = j - 1;
+                    // URL部分
+                    let mut k = j;
+                    while k < chars.len() && (chars[k].is_whitespace() || chars[k] == ']') {
+                        k += 1;
+                    }
+                    if k < chars.len() && chars[k] == '(' {
+                        let mut pdepth = 1;
+                        let mut l = k + 1;
+                        while l < chars.len() && pdepth > 0 {
+                            if chars[l] == '(' {
+                                pdepth += 1;
+                            } else if chars[l] == ')' {
+                                pdepth -= 1;
+                            }
+                            l += 1;
+                        }
+                        if pdepth == 0 {
+                            let url_start = k + 1;
+                            let url_end = l - 1;
+                            let title = if title_end >= title_start {
+                                chars[title_start..=title_end].iter().collect::<String>()
+                            } else {
+                                String::new()
+                            };
+                            let url = if url_end >= url_start {
+                                chars[url_start..=url_end].iter().collect::<String>()
+                            } else {
+                                String::new()
+                            };
+                            let mut title_unescaped = unescape_markdown(&title).trim().to_string();
+                            // 余分な閉じ括弧を除去（例: [abc]] → [abc]）
+                            while title_unescaped.ends_with(']') && title_unescaped != "]" {
+                                title_unescaped.pop();
+                            }
+                            let mut url_trim = url.trim().to_string();
+                            // 余分な閉じ括弧を除去（例: https://example.com) → https://example.com）
+                            while url_trim.ends_with(')') && url_trim.matches(')').count() > url_trim.matches('(').count() {
+                                url_trim.pop();
+                            }
+                            let mut final_title = title_unescaped;
+                            if final_title.is_empty() || final_title == "]" {
+                                final_title = url_trim.clone();
+                            }
+                            if url_trim.is_empty() {
+                                warnings.push(format!("リンク '{}' はURLが空のため無視されました。", final_title));
+                            } else if Url::parse(&url_trim).is_err() {
+                                warnings.push(format!("リンク '{}' のURL '{}' は無効なため無視されました。", final_title, url_trim));
+                            } else {
+                                res.push(Link::new(final_title, url_trim));
+                            }
+                            break; // 一番外側だけ抽出
+                        }
+                    }
                 }
-                j += 1;
             }
-            if depth == 0 {
-                // j is position after the matching ']' (unescaped)
-                let title_start = i + 1;
-                let title_end_idx = j - 1; // inclusive index of the matching ']'
-                // skip whitespace and any extra closing ']' characters that may appear before the URL
-                let mut k = j;
-                while k < chars.len() && (chars[k].is_whitespace() || chars[k] == ']') {
-                    k += 1;
-                }
-                if k < chars.len() && chars[k] == '(' {
-                    // parse parentheses for URL with simple balancing
-                    let mut pdepth = 1usize;
-                    let mut l = k + 1;
-                    while l < chars.len() && pdepth > 0 {
-                        if chars[l] == '\\' {
-                            // skip escaped char
-                            l = l.saturating_add(2);
-                            continue;
-                        }
-                        if chars[l] == '(' {
-                            pdepth += 1;
-                        } else if chars[l] == ')' {
-                            pdepth -= 1;
-                        }
-                        l += 1;
-                    }
-                    if pdepth == 0 {
-                        let url_start = k + 1;
-                        // l is position after the matching ')' ; exclude the closing paren from url
-                        let url_end_idx = l.saturating_sub(2); // inclusive index of last char of URL
-                        // Build title string from title_start..=title_end_idx, but handle escapes when scanning
-                        let title: String = if title_end_idx >= title_start {
-                            chars[title_start..=title_end_idx].iter().collect()
-                        } else {
-                            String::new()
-                        };
-                        let url: String = if url_end_idx >= url_start {
-                            chars[url_start..=url_end_idx].iter().collect()
-                        } else {
-                            String::new()
-                        };
-                        // Unescape common markdown escapes in title, and trim
-                        let title_unescaped = unescape_markdown(&title);
-                        let url_trim = url.trim().to_string();
-                        let mut final_title = title_unescaped.trim().to_string();
-                        if final_title.is_empty() {
-                            final_title = url_trim.clone();
-                        }
-                        if url_trim.is_empty() {
-                            warnings.push(format!("リンク '{}' はURLが空のため無視されました。", final_title));
-                        } else if Url::parse(&url_trim).is_err() {
-                            warnings.push(format!("リンク '{}' のURL '{}' は無効なため無視されました。", final_title, url_trim));
-                        } else {
-                            res.push(Link::new(final_title, url_trim));
-                        }
-                        // advance i past the parsed URL (position after closing paren)
-                        i = l;
-                        continue;
-                    }
-                }
+            i += 1;
+        }
+        // Markdownリンクでなければ、URLだけのリストとして判定
+        let numbered = trimmed
+            .splitn(2, '.')
+            .map(|s| s.trim())
+            .collect::<Vec<_>>();
+        let url_candidate = if numbered.len() == 2 && numbered[0].chars().all(|c| c.is_digit(10)) {
+            numbered[1]
+        } else if trimmed.starts_with('-') {
+            trimmed.trim_start_matches('-').trim()
+        } else {
+            trimmed
+        };
+        if url_candidate.starts_with("http://") || url_candidate.starts_with("https://") {
+            if Url::parse(url_candidate).is_ok() {
+                res.push(Link::new(url_candidate.to_string(), url_candidate.to_string()));
+            } else {
+                warnings.push(format!("URL '{}' は無効なため無視されました。", url_candidate));
             }
         }
-        i += 1;
     }
     (res, warnings)
 }
@@ -304,5 +318,18 @@ mod tests {
         assert!(warnings.is_empty());
     }
 
-    // debug tests removed
+    #[test]
+    fn test_plain_url_list_numbered() {
+        let md = "1. https://logmi.jp/business/articles/330254\n2. https://qiita.com/wolfmagnate/items/49a18bcb95fcc1b1438d\n3. https://qiita.com/_mi/items/ce66aa922ee46b00ab2d\n4. https://diamond.jp/articles/-/339358\n5. https://logmi.jp/tech/articles/330310";
+        let (links, warnings) = parse_markdown_links(md);
+        // 現状は0件になるはず。拡張後は5件になるべき。
+        assert_eq!(links.len(), 5);
+    }
+
+    #[test]
+    fn test_plain_url_list_unordered() {
+        let md = "- https://logmi.jp/business/articles/330254\n- https://qiita.com/wolfmagnate/items/49a18bcb95fcc1b1438d\n- https://qiita.com/_mi/items/ce66aa922ee46b00ab2d\n- https://diamond.jp/articles/-/339358\n- https://logmi.jp/tech/articles/330310";
+        let (links, warnings) = parse_markdown_links(md);
+        assert_eq!(links.len(), 5);
+    }
 }
