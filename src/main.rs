@@ -42,12 +42,18 @@ fn main() {
     };
 
     match converter::convert_markdown_to_netscape(&src) {
-        Ok(html) => {
-            if let Err(e) = fs::write(&args.output, html) {
+        Ok(result) => {
+            if let Err(e) = fs::write(&args.output, &result.html) {
                 eprintln!("Error writing output file: {}", e);
                 process::exit(5);
             }
             println!("Conversion completed: {}", args.output.display());
+            if !result.warnings.is_empty() {
+                println!("警告: 以下のリンクは無視されました:");
+                for w in result.warnings {
+                    println!("  - {}", w);
+                }
+            }
         }
         Err(err) => {
             eprintln!("Conversion error: {:?}", err);
